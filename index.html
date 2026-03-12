@@ -13,13 +13,19 @@
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand" onclick="navigateTo('home'); return false;" style="cursor: pointer;">
-                <h1 class="logo">FOTOCENTER</h1>
-                <p class="logo-sub" data-i18n="philippines">Philippines</p>
+                <h1 class="logo">FOTOCENTER PH</h1>
             </div>
 
             <!-- FIXED HAMBURGER MENU -->
             <div class="hamburger-menu" id="hamburgerMenu">
-                <button class="hamburger-icon" id="hamburgerIcon" aria-label="Menu">☰</button>
+                <button class="hamburger-icon" id="hamburgerIcon" aria-label="Menu">
+                    <span class="hamburger-bars">
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                        <span class="bar"></span>
+                    </span>
+                    <span class="hamburger-label" data-i18n="menu">Menu</span>
+                </button>
                 <div class="hamburger-dropdown" id="hamburgerDropdown">
                     <a href="#" onclick="navigateTo('photos'); return false;" class="dropdown-item">
                         <span class="dropdown-icon">✏️</span> <span data-i18n="editor">Editor</span>
@@ -122,7 +128,11 @@
                 </div>
                 <div class="cart-hover-wrapper">
                     <button class="cart-btn" id="cartHoverBtn" onclick="navigateTo('cart-page'); return false;">
-                        🛒 <span data-i18n="cart">Cart</span> <span id="cartCount" class="cart-badge">0</span>
+                        <span class="cart-icon-wrapper">
+                            <img src="images2/cart.png" alt="Cart" class="cart-icon-img">
+                            <span id="cartCount" class="cart-badge">0</span>
+                        </span>
+                        <span data-i18n="cart">Cart</span>
                     </button>
                     <div class="cart-hover-dropdown" id="cartHoverDropdown">
                         <div class="cart-hover-loading"><span data-i18n="loading_cart">Loading cart...</span></div>
@@ -132,8 +142,8 @@
                 <!-- LANGUAGE BUTTON -->
                 <div class="language-dropdown" id="languageDropdown">
                     <button class="language-btn" id="languageBtn">
-                        <span class="flag-icon">🇺🇸</span>
-                        <span class="language-name">English</span>
+                        <img class="flag-img" src="https://flagcdn.com/24x18/us.png" alt="USA">
+                        <span class="language-name">USA</span>
                         <span class="currency-code">USD</span>
                         <span class="dropdown-arrow">▼</span>
                     </button>
@@ -168,7 +178,7 @@
                 <!-- Cart Tabs -->
                 <div class="cart-tabs">
                     <button class="cart-tab active" data-tab="all" data-i18n="all">ALL</button>
-                    <button class="cart-tab" data-tab="printing" data-i18n="printing">Printing</button>
+                    <button class="cart-tab" data-tab="printing" data-i18n="order_history">Order History</button>
                     <button class="cart-tab" data-tab="toship" data-i18n="to_ship">To Ship</button>
                     <button class="cart-tab" data-tab="completed" data-i18n="completed">Completed</button>
                     <button class="cart-tab" data-tab="cancel" data-i18n="cancel_return">Cancel/Return</button>
@@ -800,6 +810,7 @@
             <h3 data-i18n="order_submitted">Order Submitted Successfully!</h3>
             <div id="orderSuccessMessage" style="text-align: left; margin: 1.5rem 0; line-height: 1.8; white-space: pre-line;"></div>
             <div class="modal-actions">
+                <button class="modal-btn receipt-download-btn" onclick="downloadReceipt()" style="background: linear-gradient(135deg, #ff6b35, #ff8f5e); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">📄 Download Receipt (PDF)</button>
                 <button class="modal-btn continue-btn" onclick="document.getElementById('orderSuccessModal').style.display='none'" data-i18n="ok">OK</button>
             </div>
         </div>
@@ -916,6 +927,7 @@
     </div>
 
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="languages.js"></script>
     <script src="script.js"></script>
 </body>
