@@ -133,7 +133,8 @@ body {
 .login-link {
     color: var(--text);
     text-decoration: none;
-    font-size: 1.5rem;
+    font-size: 1.3rem;
+    font-weight: 600;
 }
 
     .login-link:hover {
@@ -141,19 +142,59 @@ body {
     }
 
 .cart-btn {
-    background-color: var(--accent);
-    color: white;
+    background: none;
+    color: var(--text);
     border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius);
     cursor: pointer;
     font-size: 1.3rem;
+    font-weight: 600;
     transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 
     .cart-btn:hover {
-        background-color: var(--accent-hover);
+        color: var(--accent);
     }
+
+.cart-icon-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.cart-icon-wrapper .cart-icon-img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+}
+
+/* Cart Badge */
+.cart-badge {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    background: #e53935;
+    color: white;
+    border-radius: 50%;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    border: 2px solid white;
+}
 
 /* Pages */
 .page {
@@ -179,24 +220,21 @@ body {
 
 /* Hero Section */
 .hero {
-    background: linear-gradient(135deg, #f0f0f0 0%, #ffffff 100%);
+    background: var(--accent);
     padding: 4rem 2rem 3rem;
     text-align: center;
-    border-bottom: 1px solid var(--border);
+    border-bottom: none;
 }
 
 .hero-content h2 {
     font-size: 2.5rem;
     margin-bottom: 1rem;
-    background: linear-gradient(135deg, var(--text) 0%, var(--text-muted) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #ffffff;
 }
 
 .hero-content p {
     font-size: 1.3rem;
-    color: var(--text-muted);
+    color: rgba(255, 255, 255, 0.85);
     margin-bottom: 2rem;
 }
 
@@ -3676,6 +3714,30 @@ button:disabled {
         font-weight: 600;
     }
 
+.cart-edit-btn {
+    background: linear-gradient(135deg, var(--accent), #ff8f5e);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.cart-edit-btn:hover {
+    opacity: 0.85;
+    transform: scale(1.05);
+}
+
+.cart-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .cart-item-remove {
     background: none;
     border: none;
@@ -3970,15 +4032,7 @@ button:disabled {
     color: var(--text-muted);
 }
 
-/* Cart Badge */
-.cart-badge {
-    background: white;
-    color: var(--accent);
-    border-radius: 50%;
-    padding: 0.1rem 0.4rem;
-    font-size: 0.8rem;
-    margin-left: 0.3rem;
-}
+/* Cart Badge - see main .cart-badge above */
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -4435,7 +4489,7 @@ button:disabled {
 
 /* Make nav container wider */
 .nav-container {
-    max-width: 1400px !important;
+    max-width: 1700px !important;
     padding: 0 3rem !important;
     gap: 2rem !important;
 }
@@ -4454,18 +4508,64 @@ button:disabled {
 .hamburger-icon {
     background: none;
     border: none;
-    font-size: 2.5rem;
     cursor: pointer;
     color: var(--text);
     padding: 0.5rem;
     transition: var(--transition);
     line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
 }
 
-    .hamburger-icon:hover {
-        color: var(--accent);
-        transform: scale(1.1);
-    }
+/* Three bars container */
+.hamburger-bars {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 24px;
+    height: 24px;
+}
+
+.hamburger-bars .bar {
+    display: block;
+    width: 100%;
+    height: 3px;
+    background-color: var(--text);
+    border-radius: 2px;
+    transition: all 0.3s ease;
+    transform-origin: center;
+}
+
+/* Animate to X when open */
+.hamburger-menu.open .hamburger-bars .bar:nth-child(1) {
+    transform: translateY(8px) rotate(45deg);
+}
+
+.hamburger-menu.open .hamburger-bars .bar:nth-child(2) {
+    opacity: 0;
+    transform: scaleX(0);
+}
+
+.hamburger-menu.open .hamburger-bars .bar:nth-child(3) {
+    transform: translateY(-8px) rotate(-45deg);
+}
+
+/* Hover effect */
+.hamburger-icon:hover .hamburger-bars .bar {
+    background-color: var(--accent);
+}
+
+.hamburger-icon:hover {
+    color: var(--accent);
+}
+
+.hamburger-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
 
 .hamburger-dropdown {
     position: absolute;
@@ -4952,6 +5052,16 @@ button:disabled {
         font-size: 1.2rem;
     }
 
+/* Flag image styling */
+.flag-img {
+    width: 24px;
+    height: 18px;
+    object-fit: cover;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+}
+
     .language-btn .language-name {
         font-weight: 600;
     }
@@ -5022,6 +5132,11 @@ button:disabled {
     .language-item .flag-icon {
         font-size: 1.3rem;
         min-width: 28px;
+    }
+
+    .language-item .flag-img {
+        width: 28px;
+        height: 20px;
     }
 
     .language-item .language-name {
