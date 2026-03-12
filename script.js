@@ -32,9 +32,11 @@ function initLanguageDropdown() {
         const item = document.createElement('div');
         item.className = `language-item ${lang.code === currentLanguage.code ? 'active' : ''}`;
         item.setAttribute('data-language', lang.code);
+        const fc = lang.flagCode || lang.code;
+        const cn = lang.countryName || lang.name;
         item.innerHTML = `
-            <span class="flag-icon">${lang.flag}</span>
-            <span class="language-name">${lang.name}</span>
+            <img class="flag-img" src="https://flagcdn.com/24x18/${fc}.png" alt="${cn}">
+            <span class="language-name">${cn}</span>
             <span class="currency-code">${lang.currency}</span>
             <span class="currency-symbol">${lang.symbol}</span>
         `;
@@ -125,9 +127,11 @@ function updateLanguageButton() {
     const btn = document.getElementById('languageBtn');
     if (!btn) return;
 
+    const fc = currentLanguage.flagCode || currentLanguage.code;
+    const cn = currentLanguage.countryName || currentLanguage.name;
     btn.innerHTML = `
-        <span class="flag-icon">${currentLanguage.flag}</span>
-        <span class="language-name">${currentLanguage.name}</span>
+        <img class="flag-img" src="https://flagcdn.com/24x18/${fc}.png" alt="${cn}">
+        <span class="language-name">${cn}</span>
         <span class="currency-code">${currentLanguage.currency}</span>
         <span class="dropdown-arrow">▼</span>
     `;
@@ -973,9 +977,83 @@ function loadChatHistory() {
     }
 }
 
+// ============== CART IMAGE STORE (IndexedDB) ==============
+var CartImageStore = {
+    dbName: 'fotocenterCartImages',
+    storeName: 'images',
+    version: 1,
+
+    open: function() {
+        return new Promise(function(resolve, reject) {
+            var request = indexedDB.open(CartImageStore.dbName, CartImageStore.version);
+            request.onupgradeneeded = function(e) {
+                var db = e.target.result;
+                if (!db.objectStoreNames.contains(CartImageStore.storeName)) {
+                    db.createObjectStore(CartImageStore.storeName, { keyPath: 'id' });
+                }
+            };
+            request.onsuccess = function(e) { resolve(e.target.result); };
+            request.onerror = function(e) { reject(e.target.error); };
+        });
+    },
+
+    save: function(cartItemId, photosData) {
+        return CartImageStore.open().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(CartImageStore.storeName, 'readwrite');
+                var store = tx.objectStore(CartImageStore.storeName);
+                store.put({ id: cartItemId, photos: photosData });
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function(e) { reject(e.target.error); };
+            });
+        }).catch(function(e) { console.warn('CartImageStore save failed:', e); });
+    },
+
+    load: function(cartItemId) {
+        return CartImageStore.open().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(CartImageStore.storeName, 'readonly');
+                var store = tx.objectStore(CartImageStore.storeName);
+                var request = store.get(cartItemId);
+                request.onsuccess = function() { resolve(request.result ? request.result.photos : null); };
+                request.onerror = function(e) { reject(e.target.error); };
+            });
+        }).catch(function(e) { console.warn('CartImageStore load failed:', e); return null; });
+    },
+
+    remove: function(cartItemId) {
+        return CartImageStore.open().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(CartImageStore.storeName, 'readwrite');
+                var store = tx.objectStore(CartImageStore.storeName);
+                store.delete(cartItemId);
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function(e) { reject(e.target.error); };
+            });
+        }).catch(function(e) { console.warn('CartImageStore remove failed:', e); });
+    },
+
+    clear: function() {
+        return CartImageStore.open().then(function(db) {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(CartImageStore.storeName, 'readwrite');
+                var store = tx.objectStore(CartImageStore.storeName);
+                store.clear();
+                tx.oncomplete = function() { resolve(); };
+                tx.onerror = function(e) { reject(e.target.error); };
+            });
+        }).catch(function(e) { console.warn('CartImageStore clear failed:', e); });
+    }
+};
+
 // ============== CART MANAGEMENT ==============
 function updateCartStorage() {
-    localStorage.setItem('fotocenterCart', JSON.stringify(shoppingCart));
+    var lightCart = shoppingCart.map(function(item) {
+        var copy = Object.assign({}, item);
+        delete copy._fullPhotosData;
+        return copy;
+    });
+    localStorage.setItem('fotocenterCart', JSON.stringify(lightCart));
 }
 
 function addToCart(item) {
@@ -1017,9 +1095,14 @@ function updateCartUI() {
     const total = calculateCartTotal();
     const itemCount = shoppingCart.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
-    cartBtn.innerHTML = `🛒 Cart <span id="cartCount" class="cart-badge">${itemCount}</span>`;
-    const cartCountBadge = document.getElementById('cartCount');
-    if (cartCountBadge) cartCountBadge.textContent = itemCount;
+    cartBtn.innerHTML = `
+        <span class="cart-icon-wrapper">
+            <img src="images2/cart.png" alt="Cart" class="cart-icon-img">
+            <span id="cartCount" class="cart-badge">${itemCount}</span>
+        </span>
+        <span data-i18n="cart">Cart</span>
+    `;
+    if (typeof updateAllText === 'function') updateAllText();
 }
 
 function calculateCartTotal() {
@@ -1030,10 +1113,15 @@ function calculateCartTotal() {
 }
 
 function removeFromCart(index) {
+    var removedItem = shoppingCart[index];
     shoppingCart.splice(index, 1);
     updateCartStorage();
     updateCartUI();
     updateCartHover();
+    if (removedItem && removedItem.id) {
+        CartImageStore.remove(removedItem.id);
+        if (window._cartImageData) delete window._cartImageData[removedItem.id];
+    }
     if (document.getElementById('cart-page')?.classList.contains('active')) {
         renderCartPage();
     }
@@ -1044,6 +1132,8 @@ function clearCart() {
     updateCartStorage();
     updateCartUI();
     updateCartHover();
+    CartImageStore.clear();
+    window._cartImageData = {};
 }
 
 function viewCart() {
@@ -1401,6 +1491,17 @@ function navigateTo(pageId) {
         setTimeout(() => {
             switchPhotoMode('upload');
         }, 50);
+
+        // Show editor welcome popup (unless already triggered by "Open in Editor" button)
+        setTimeout(() => {
+            if (!window._editorWelcomeShownByButton) {
+                const currentProd = window.currentProduct || 'photocards';
+                if (typeof showEditorWelcome === 'function') {
+                    showEditorWelcome(currentProd);
+                }
+            }
+            window._editorWelcomeShownByButton = false;
+        }, 200);
     }
 
     if (pageId === 'cart-page') {
@@ -1812,8 +1913,16 @@ function saveCurrentAdjustments() {
         const img = new Image();
 
         img.onload = function () {
-            thumbnailCanvas.width = 100;
-            thumbnailCanvas.height = 100;
+            var maxThumbSize = 400;
+            var thumbW = img.width;
+            var thumbH = img.height;
+            if (thumbW > maxThumbSize || thumbH > maxThumbSize) {
+                var thumbRatio = Math.min(maxThumbSize / thumbW, maxThumbSize / thumbH);
+                thumbW = Math.round(thumbW * thumbRatio);
+                thumbH = Math.round(thumbH * thumbRatio);
+            }
+            thumbnailCanvas.width = thumbW;
+            thumbnailCanvas.height = thumbH;
             tempCtx.save();
 
             tempCtx.filter = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturation}%)`;
@@ -1842,7 +1951,7 @@ function saveCurrentAdjustments() {
             tempCtx.restore();
 
             tempCtx.save();
-            tempCtx.font = '10px Arial';
+            tempCtx.font = Math.max(10, Math.round(thumbW * 0.04)) + 'px Arial';
             tempCtx.fillStyle = 'rgba(255,255,255,0.7)';
             tempCtx.textAlign = 'right';
             tempCtx.fillText('FOTOCENTER', thumbnailCanvas.width - 6, thumbnailCanvas.height - 6);
@@ -2407,6 +2516,35 @@ window.addPhotoToCart = function () {
         thumbnail: img.src,
     }));
 
+    // Full image data saved to IndexedDB (not localStorage) to avoid quota issues
+    const fullPhotosData = uploadedImages.map(img => ({
+        name: img.name,
+        thumbnail: img.src,
+        original: img.original,
+        baseOriginal: img.baseOriginal,
+        adjustments: img.adjustments ? { ...img.adjustments } : null,
+        filter: img.filter || 'none'
+    }));
+
+    // Capture a proper display image from the canvas (not the tiny thumbnail)
+    var canvasDisplayImage = null;
+    if (canvas && canvas.width > 0) {
+        var dispCanvas = document.createElement('canvas');
+        var dispCtx = dispCanvas.getContext('2d');
+        var maxDisp = 500;
+        var dw = canvas.width;
+        var dh = canvas.height;
+        if (dw > maxDisp || dh > maxDisp) {
+            var dr = Math.min(maxDisp / dw, maxDisp / dh);
+            dw = Math.round(dw * dr);
+            dh = Math.round(dh * dr);
+        }
+        dispCanvas.width = dw;
+        dispCanvas.height = dh;
+        dispCtx.drawImage(canvas, 0, 0, dw, dh);
+        canvasDisplayImage = dispCanvas.toDataURL('image/jpeg', 0.7);
+    }
+
     const cartItem = {
         id: 'photo-' + Date.now(),
         type: 'photo',
@@ -2416,7 +2554,7 @@ window.addPhotoToCart = function () {
         size: size,
         photos: photosData,
         photoCount: uploadedImages.length,
-        displayImage: uploadedImages[0]?.src || null,
+        displayImage: canvasDisplayImage || uploadedImages[0]?.src || null,
         price: formatPrice(finalPriceUSD), // Formatted total price for display
         basePriceUSD: pricePerPhotoUSD, // Price per unit in USD
         quantity: quantity,
@@ -2429,10 +2567,31 @@ window.addPhotoToCart = function () {
         selected: true
     };
 
-    addToCart(cartItem);
+    // If editing an existing cart item, replace it instead of adding new
+    if (window._editingCartIndex !== null && window._editingCartIndex !== undefined) {
+        var insertIndex = Math.min(window._editingCartIndex, shoppingCart.length);
+        cartItem.addedAt = new Date().toISOString();
+        shoppingCart.splice(insertIndex, 0, cartItem);
+        updateCartStorage();
+        updateCartUI();
+        showSuccessModal();
+        updateCartHover();
+    } else {
+        addToCart(cartItem);
+    }
+
+    // Save full image data for edit feature
+    // 1. Global map (instant, same session)
+    window._cartImageData = window._cartImageData || {};
+    window._cartImageData[cartItem.id] = fullPhotosData;
+    // 2. IndexedDB (backup for page refresh)
+    CartImageStore.save(cartItem.id, fullPhotosData);
+    // 3. In-memory on cart item
+    cartItem._fullPhotosData = fullPhotosData;
 
     // Reset editor state
     uploadedImages = [];
+    originalImages = [];
     currentImageIndex = -1;
     updateImageGallery();
     const overlay = document.getElementById('canvasOverlay');
@@ -2440,10 +2599,222 @@ window.addPhotoToCart = function () {
     document.getElementById('uploadCount').textContent = '0';
     currentQuantity = 1;
     document.getElementById('quantityDisplay').textContent = '1';
+
+    // Reset file input so the same file can be re-uploaded
+    const fileInput = document.getElementById('photoInput');
+    if (fileInput) fileInput.value = '';
+
     calculatePrice();
+
+    // Clear editing state
+    window._editingCartIndex = null;
 
     console.log('✨ Editor reset complete! Item added to cart.');
 };
+
+// ============== EDIT CART ITEM ==============
+function editCartItem(index) {
+    var item = shoppingCart[index];
+    if (!item) return;
+
+    // Store the cart index so addPhotoToCart can replace instead of adding new
+    window._editingCartIndex = index;
+
+    var itemId = item.id;
+
+    // Grab full photos data from ALL sources BEFORE removing from cart
+    window._cartImageData = window._cartImageData || {};
+    var inMemoryPhotos = window._cartImageData[itemId] || item._fullPhotosData || null;
+    // Clean up global map
+    delete window._cartImageData[itemId];
+
+    // Remove item from cart
+    shoppingCart.splice(index, 1);
+    updateCartStorage();
+    updateCartUI();
+    updateCartHover();
+
+    // Navigate to editor
+    window._editorWelcomeShownByButton = true;
+    navigateTo('photos');
+
+    setTimeout(function() {
+        // Restore product type
+        if (item.productType && typeof selectProduct === 'function') {
+            selectProduct(item.productType);
+        }
+
+        // Use in-memory data if available (fastest, most reliable)
+        if (inMemoryPhotos && inMemoryPhotos.length > 0) {
+            console.log('✏️ Edit: using in-memory photos data (' + inMemoryPhotos.length + ' photos)');
+            CartImageStore.remove(itemId);
+            restorePhotosToEditor(inMemoryPhotos, item);
+        } else {
+            // Fallback: try IndexedDB
+            console.log('✏️ Edit: no in-memory data, trying IndexedDB...');
+            CartImageStore.load(itemId).then(function(dbPhotos) {
+                CartImageStore.remove(itemId);
+                var photosList = dbPhotos || item.photos || [];
+                console.log('✏️ Edit: IndexedDB returned ' + (dbPhotos ? dbPhotos.length + ' photos' : 'null, using cart photos'));
+                restorePhotosToEditor(photosList, item);
+            });
+        }
+    }, 300);
+}
+
+function restorePhotosToEditor(photosList, item) {
+    uploadedImages = [];
+    originalImages = [];
+    currentImageIndex = -1;
+
+    if (!photosList || photosList.length === 0) {
+        console.warn('No photos found to restore.');
+        return;
+    }
+
+    var loadedCount = 0;
+    var totalPhotos = photosList.length;
+
+    photosList.forEach(function(photo, photoIndex) {
+        var imgSrc = photo.original || photo.baseOriginal || photo.thumbnail;
+        if (!imgSrc) {
+            loadedCount++;
+            return;
+        }
+
+        var testImg = new Image();
+        testImg.onload = function() {
+            var fullSrc = photo.original || photo.baseOriginal || imgSrc;
+
+            // Generate a proper-sized gallery thumbnail from the full-res image
+            var thumbCanvas = document.createElement('canvas');
+            var thumbCtx = thumbCanvas.getContext('2d');
+            var maxThumb = 300;
+            var tw = testImg.width;
+            var th = testImg.height;
+            if (tw > maxThumb || th > maxThumb) {
+                var ratio = Math.min(maxThumb / tw, maxThumb / th);
+                tw = Math.round(tw * ratio);
+                th = Math.round(th * ratio);
+            }
+            thumbCanvas.width = tw;
+            thumbCanvas.height = th;
+            thumbCtx.drawImage(testImg, 0, 0, tw, th);
+            var betterThumbnail = thumbCanvas.toDataURL('image/jpeg', 0.8);
+
+            var restoredImage = {
+                id: Date.now() + Math.random(),
+                src: betterThumbnail,
+                name: photo.name || 'Photo ' + (photoIndex + 1),
+                original: fullSrc,
+                baseOriginal: photo.baseOriginal || fullSrc,
+                adjustments: photo.adjustments ? {
+                    brightness: photo.adjustments.brightness || 100,
+                    contrast: photo.adjustments.contrast || 100,
+                    saturation: photo.adjustments.saturation || 100,
+                    rotation: photo.adjustments.rotation || 0,
+                    flipHorizontal: photo.adjustments.flipHorizontal || false,
+                    flipVertical: photo.adjustments.flipVertical || false
+                } : {
+                    brightness: 100, contrast: 100, saturation: 100,
+                    rotation: 0, flipHorizontal: false, flipVertical: false
+                },
+                filter: photo.filter || 'none',
+                history: [photo.baseOriginal || fullSrc],
+                redo: []
+            };
+
+            uploadedImages.push(restoredImage);
+            originalImages.push(restoredImage.original);
+            loadedCount++;
+
+            if (loadedCount === totalPhotos) {
+                finishEditRestore(item);
+            }
+        };
+        testImg.onerror = function() {
+            console.warn('Failed to load image for edit restore:', photo.name);
+            loadedCount++;
+            if (loadedCount === totalPhotos) {
+                finishEditRestore(item);
+            }
+        };
+        testImg.src = imgSrc;
+    });
+}
+
+function finishEditRestore(item) {
+    updateImageGallery();
+    updateUploadCount();
+
+    // Select the first image and restore its adjustments
+    if (uploadedImages.length > 0) {
+        // Ensure canvas is initialized before drawing
+        if (!canvas || !ctx) {
+            setupPhotoEditor();
+        }
+
+        selectImage(0);
+
+        var firstImg = uploadedImages[0];
+        adjustments = { ...firstImg.adjustments };
+        currentFilter = firstImg.filter || 'none';
+        updateSliderValues();
+
+        // Small delay to ensure canvas container is fully rendered after page switch
+        setTimeout(function() {
+            drawImage();
+        }, 100);
+    }
+
+    // Restore print options: size
+    if (item.size && item.size !== 'custom') {
+        var sizeRadio = document.querySelector('input[name="advancedPrintSize"][value="' + item.size + '"]');
+        if (sizeRadio) {
+            sizeRadio.checked = true;
+            onSizeSelect();
+        }
+    } else if (item.isCustom && item.customDimensions) {
+        var customRadio = document.querySelector('input[name="advancedPrintSize"][value="custom"]');
+        if (customRadio) {
+            customRadio.checked = true;
+            onSizeSelect();
+            var widthInput = document.getElementById('customWidth');
+            var heightInput = document.getElementById('customHeight');
+            if (widthInput) {
+                widthInput.value = item.customDimensions.width;
+                widthInput.setAttribute('data-inches', item.customDimensions.width);
+            }
+            if (heightInput) {
+                heightInput.value = item.customDimensions.height;
+                heightInput.setAttribute('data-inches', item.customDimensions.height);
+            }
+        }
+    }
+
+    // Restore paper type
+    if (item.paperType) {
+        var paperRadio = document.querySelector('input[name="paperType"][value="' + item.paperType + '"]');
+        if (paperRadio) paperRadio.checked = true;
+    }
+
+    // Restore size mode
+    if (item.sizeMode) {
+        var modeRadio = document.querySelector('input[name="sizeMode"][value="' + item.sizeMode + '"]');
+        if (modeRadio) modeRadio.checked = true;
+    }
+
+    // Restore quantity
+    if (item.quantity) {
+        currentQuantity = item.quantity;
+        var qtyDisplay = document.getElementById('quantityDisplay');
+        if (qtyDisplay) qtyDisplay.textContent = item.quantity;
+    }
+
+    calculatePrice();
+
+    console.log('✅ Cart item restored to editor for editing.');
+}
 
 // ============== CROP TOOL ==============
 function setupCropHandles() {
@@ -3977,6 +4348,352 @@ function generateReceiptFile(orderData) {
     return receipt;
 }
 
+// ============== PDF RECEIPT GENERATION (A4) ==============
+function generateReceiptPDF(orderData, returnData) {
+    if (typeof window.jspdf === 'undefined') {
+        if (!returnData) alert('PDF library not loaded. Please try again.');
+        return null;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    var pageWidth = 210;
+    var margin = 15;
+    var contentWidth = pageWidth - margin * 2;
+    var y = margin;
+
+    // Colors
+    var accent = [70, 150, 220];
+    var dark = [33, 33, 33];
+    var gray = [120, 120, 120];
+    var lightBg = [245, 245, 245];
+    var white = [255, 255, 255];
+    var green = [39, 174, 96];
+
+    // Currency
+    var lang = window.currentLanguage || { currency: 'USD', symbol: '$', rate: 1 };
+    function fmtPrice(usd) {
+        return lang.symbol + (usd * (lang.rate || 1)).toFixed(2);
+    }
+
+    // ===== SECTION 1: HEADER =====
+
+    // Big FOTOCENTER PH title
+    doc.setFontSize(36);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.text('FOTOCENTER PH', pageWidth / 2, y + 14, { align: 'center' });
+    y += 20;
+
+    // Subtitle
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text('Order Receipt', pageWidth / 2, y, { align: 'center' });
+    y += 8;
+
+    // Accent line
+    doc.setDrawColor(accent[0], accent[1], accent[2]);
+    doc.setLineWidth(1);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Customer info (left) | Order info (right)
+    var customerName = localStorage.getItem('userName') || 'Guest';
+    var customerEmail = localStorage.getItem('userEmail') || 'N/A';
+    var orderDate = new Date(orderData.timestamp);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.text('Customer', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(customerName, margin, y + 5);
+    doc.text(customerEmail, margin, y + 10);
+    doc.text('Malolos, Bulacan, Philippines', margin, y + 15);
+
+    // Right side
+    var rLabel = pageWidth - margin - 65;
+    var rVal = pageWidth - margin;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Order No:', rLabel, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(orderData.orderId, rVal, y, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date:', rLabel, y + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(orderDate.toLocaleDateString(), rVal, y + 5, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Time:', rLabel, y + 10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(orderDate.toLocaleTimeString(), rVal, y + 10, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Currency:', rLabel, y + 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lang.currency, rVal, y + 15, { align: 'right' });
+
+    y += 23;
+
+    // Delivery method
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.text('Delivery:', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Digital Delivery', margin + 22, y);
+    y += 8;
+
+    // Separator
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 6;
+
+    // ===== SECTION 2: ITEMS TABLE =====
+
+    var col = {
+        num: margin + 1,
+        desc: margin + 10,
+        size: margin + 78,
+        paper: margin + 103,
+        qty: margin + 130,
+        price: margin + 145,
+        tax: margin + 168
+    };
+
+    // Header row
+    doc.setFillColor(accent[0], accent[1], accent[2]);
+    doc.rect(margin, y - 2, contentWidth, 8, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(white[0], white[1], white[2]);
+    doc.text('#', col.num, y + 3);
+    doc.text('Description', col.desc, y + 3);
+    doc.text('Size', col.size, y + 3);
+    doc.text('Paper', col.paper, y + 3);
+    doc.text('Qty', col.qty, y + 3);
+    doc.text('Price', col.price, y + 3);
+    doc.text('Tax', col.tax, y + 3);
+    y += 10;
+
+    // Item rows
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+
+    var subtotalUSD = 0;
+    var vatRate = 0.12;
+
+    orderData.photos.forEach(function(photo, index) {
+        var itemTotal = (photo.price || 0) * (photo.quantity || 1);
+        subtotalUSD += itemTotal;
+
+        if (index % 2 === 0) {
+            doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+            doc.rect(margin, y - 3, contentWidth, 7, 'F');
+        }
+
+        doc.setTextColor(dark[0], dark[1], dark[2]);
+        doc.text(String(index + 1), col.num, y + 1);
+
+        var desc = photo.productName || photo.originalName || 'Photo ' + (index + 1);
+        if (desc.length > 28) desc = desc.substring(0, 25) + '...';
+        doc.text(desc, col.desc, y + 1);
+
+        doc.text(photo.size || '4x6', col.size, y + 1);
+
+        var paper = photo.paperType || 'Standard';
+        paper = paper.charAt(0).toUpperCase() + paper.slice(1);
+        doc.text(paper, col.paper, y + 1);
+
+        doc.text(String(photo.quantity || 1), col.qty + 3, y + 1);
+        doc.text(fmtPrice(itemTotal), col.price, y + 1);
+        doc.text('12%', col.tax + 2, y + 1);
+
+        y += 7;
+    });
+
+    y += 3;
+
+    // Table bottom line
+    doc.setDrawColor(accent[0], accent[1], accent[2]);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // ===== SECTION 3: TOTALS & TAX =====
+
+    var vatAmount = subtotalUSD * vatRate;
+    var totalWithVat = subtotalUSD + vatAmount;
+    var tLabel = pageWidth - margin - 65;
+    var tVal = pageWidth - margin;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+
+    doc.text('Subtotal (ex. VAT):', tLabel, y);
+    doc.text(fmtPrice(subtotalUSD), tVal, y, { align: 'right' });
+    y += 6;
+
+    doc.text('VAT Rate:', tLabel, y);
+    doc.text('12%', tVal, y, { align: 'right' });
+    y += 6;
+
+    doc.text('VAT Amount:', tLabel, y);
+    doc.text(fmtPrice(vatAmount), tVal, y, { align: 'right' });
+    y += 5;
+
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(tLabel, y, pageWidth - margin, y);
+    y += 7;
+
+    // Grand total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.text('TOTAL (inc. VAT):', tLabel, y);
+    doc.text(fmtPrice(totalWithVat), tVal, y, { align: 'right' });
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Amount Paid:', tLabel, y);
+    doc.text(fmtPrice(totalWithVat), tVal, y, { align: 'right' });
+    y += 5;
+
+    doc.text('Remaining:', tLabel, y);
+    doc.text(fmtPrice(0), tVal, y, { align: 'right' });
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(green[0], green[1], green[2]);
+    doc.text('Status: FULLY PAID', tLabel, y);
+    y += 14;
+
+    // ===== SECTION 4: PAYMENT INFO =====
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(252, 252, 252);
+    doc.roundedRect(margin, y - 2, contentWidth, 32, 2, 2, 'FD');
+
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.text('Payment Information', margin + 5, y);
+    y += 7;
+
+    doc.setFontSize(8);
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    var pL = margin + 5;
+    var pV = margin + 38;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date:', pL, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(orderDate.toLocaleDateString(), pV, y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Time:', pL + 85, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(orderDate.toLocaleTimeString(), pL + 98, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Method:', pL, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Online Payment', pV, y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Amount:', pL + 85, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(fmtPrice(totalWithVat), pL + 101, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Reference:', pL, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(orderData.orderId, pV, y);
+    y += 7;
+
+    doc.setTextColor(green[0], green[1], green[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Approved - keep this receipt for your records', pL, y);
+    y += 12;
+
+    // ===== SECTION 5: FOOTER =====
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(255, 249, 246);
+    doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'FD');
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.text('Return Policy:', margin + 4, y + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text('Digital products are non-refundable. Physical prints may be returned within 14 days if defective.', margin + 4, y + 10);
+    doc.text('Contact support for assistance. All returns must be in original packaging.', margin + 4, y + 14);
+    y += 26;
+
+    // Company info
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.text('FOTOCENTER PH', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text('St. Agatha Homes, Malolos, Bulacan, Philippines', pageWidth / 2, y, { align: 'center' });
+    y += 4;
+    doc.text('Phone: (+63) 929 725 2291  |  Email: kyle.baltazar@fotocenter.se', pageWidth / 2, y, { align: 'center' });
+    y += 7;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.text('Thank you for choosing FOTOCENTER!', pageWidth / 2, y, { align: 'center' });
+
+    // If returnData flag is set, return base64 string for server upload
+    if (returnData) {
+        return doc.output('datauristring').split(',')[1];
+    }
+
+    // Otherwise download PDF
+    doc.save('FOTOCENTER_Receipt_' + orderData.orderId + '.pdf');
+}
+
+function generateReceiptPDFData(orderData) {
+    try {
+        return generateReceiptPDF(orderData, true);
+    } catch (e) {
+        console.warn('Failed to generate PDF data for server:', e);
+        return null;
+    }
+}
+
+function downloadReceipt() {
+    if (!window.lastOrderData) {
+        alert('No order data available. Please complete an order first.');
+        return;
+    }
+    generateReceiptPDF(window.lastOrderData);
+}
+
+window.downloadReceipt = downloadReceipt;
+
 function getUserOrderCount(username) {
     const key = `orderCount_${username}`;
     let count = parseInt(localStorage.getItem(key) || '0');
@@ -4101,7 +4818,7 @@ function renderCartPage() {
             'cancel': 'cancelled'
         };
         const labelMap = {
-            'printing': 'Printing',
+            'printing': 'Order History',
             'toship': 'To Ship',
             'completed': 'Completed',
             'cancel': 'Cancel/Return'
@@ -4175,6 +4892,7 @@ function renderCartPage() {
                             <span>${item.quantity || 1}</span>
                             <button onclick="updateCartItemQuantityFromCart(${index}, 1)">+</button>
                         </div>
+                        ${item.type === 'photo' ? `<button class="cart-edit-btn" onclick="editCartItem(${index})">✏️ Edit</button>` : ''}
                     </div>
                 </div>
             </div>
@@ -4467,7 +5185,8 @@ async function processOrderFromCart() {
                 photos: orderData.photos,
                 conditionFile: generateConditionFile(orderData),
                 endFile: generateEndFile(orderData),
-                receiptFile: generateReceiptFile(orderData)
+                receiptFile: generateReceiptFile(orderData),
+                receiptPDF: generateReceiptPDFData(orderData)
             })
         });
 
@@ -4493,6 +5212,9 @@ async function processOrderFromCart() {
 
         shoppingCart = shoppingCart.filter(item => !item.selected);
         updateCartStorage();
+
+        // Store order data for PDF receipt download
+        window.lastOrderData = orderData;
 
         const message = `✅ Thank you for purchasing at FOTOCENTER PH!\n\nYour Order Number: ${orderData.orderId} <button class="copy-btn" onclick="copyOrderNumber()" style="background:none; border:none; cursor:pointer; font-size:1.2rem; margin-left:5px;" title="Copy order number">📋</button>\n\nTotal Photos: ${photos.length}\n\nPlease copy and save your Order Number.\nYou can track your order status in Cart → Printing tab.\n\nThank you for choosing FOTOCENTER!`;
         document.getElementById('orderSuccessMessage').innerHTML = message;
@@ -4679,6 +5401,9 @@ function makeSlidesClickable() {
                 const productType = this.getAttribute('data-product') || 'photocards';
                 console.log('📦 Product type:', productType);
 
+                // Flag to prevent navigateTo('photos') from showing a duplicate welcome popup
+                window._editorWelcomeShownByButton = true;
+
                 navigateTo('photos');
 
                 // Delay selectProduct to run AFTER switchPhotoMode (50ms) completes,
@@ -4745,11 +5470,15 @@ function showEditorWelcome(productType) {
 
     popup.style.display = 'flex';
 
-    setTimeout(() => {
-        if (popup.style.display === 'flex') {
-            popup.style.display = 'none';
-        }
-    }, 8000);
+    // Prevent backdrop click from closing - only X button or "Got it" button should close
+    if (!popup._backdropBlocked) {
+        popup.addEventListener('click', function (e) {
+            if (e.target === popup) {
+                e.stopPropagation();
+            }
+        });
+        popup._backdropBlocked = true;
+    }
 }
 
 function closeEditorWelcome() {
@@ -4761,32 +5490,7 @@ function closeEditorWelcome() {
 
 (function setupEditorWelcome() {
     console.log('🔧 Setting up editor welcome popup...');
-
-    document.addEventListener('click', function (e) {
-        const isHamburgerEditor = e.target.closest('.hamburger-dropdown') &&
-            (e.target.textContent.includes('Editor') ||
-                e.target.closest('[onclick*="photos"]'));
-
-        if (isHamburgerEditor) {
-            console.log('📸 Editor opened via hamburger menu');
-
-            setTimeout(() => {
-                const photosPage = document.getElementById('photos');
-                if (photosPage && photosPage.classList.contains('active')) {
-                    let currentProduct = 'photocards';
-
-                    const activeItem = document.querySelector('.dropdown-item.active');
-                    if (activeItem) {
-                        currentProduct = activeItem.getAttribute('data-product') || 'photocards';
-                    }
-
-                    showEditorWelcome(currentProduct);
-                }
-            }, 1000);
-        }
-    });
-
-    console.log('✅ Editor welcome popup ready for both entry methods');
+    console.log('✅ Editor welcome popup ready (triggered via navigateTo)');
 })();
 
 // ============== ULTIMATE DROPDOWN FIX ==============
@@ -4891,6 +5595,7 @@ window.updateQuantity = updateQuantity;
 window.calculatePrice = calculatePrice;
 window.onSizeSelect = onSizeSelect;
 window.changeUnit = changeUnit;
+window.editCartItem = editCartItem;
 
 // ============== INITIALIZATION ==============
 document.addEventListener('DOMContentLoaded', function () {
