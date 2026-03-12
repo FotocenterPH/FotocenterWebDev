@@ -7,6 +7,8 @@ const languages = [
     {
         code: 'us',
         name: 'English (US)',
+        countryName: 'USA',
+        flagCode: 'us',
         flag: '🇺🇸',
         currency: 'USD',
         symbol: '$',
@@ -236,10 +238,12 @@ const languages = [
     {
         code: 'uk',
         name: 'English (UK)',
+        countryName: 'UK',
+        flagCode: 'gb',
         flag: '🇬🇧',
         currency: 'GBP',
         symbol: '£',
-        rate: 0.79, // 1 USD = 0.79 GBP
+        rate: 0.79,
         translations: {
             // Same as US but with UK spelling variations
             'home': 'Home',
@@ -445,10 +449,12 @@ const languages = [
     {
         code: 'se',
         name: 'Svenska',
+        countryName: 'Sweden',
+        flagCode: 'se',
         flag: '🇸🇪',
         currency: 'SEK',
         symbol: 'kr',
-        rate: 10.50, // 1 USD = 10.50 SEK
+        rate: 10.50,
         translations: {
             'home': 'Hem',
             'editor': 'Redigerare',
@@ -653,10 +659,12 @@ const languages = [
     {
         code: 'no',
         name: 'Norsk',
+        countryName: 'Norway',
+        flagCode: 'no',
         flag: '🇳🇴',
         currency: 'NOK',
         symbol: 'kr',
-        rate: 10.80, // 1 USD = 10.80 NOK
+        rate: 10.80,
         translations: {
             // NAVIGATION
             'home': 'Hjem',
@@ -892,10 +900,12 @@ const languages = [
     {
         code: 'dk',
         name: 'Dansk',
+        countryName: 'Denmark',
+        flagCode: 'dk',
         flag: '🇩🇰',
         currency: 'DKK',
         symbol: 'kr',
-        rate: 7.00, // 1 USD = 7.00 DKK
+        rate: 7.00,
         translations: {
             // NAVIGATION
             'home': 'Hjem',
@@ -1132,10 +1142,12 @@ const languages = [
     {
         code: 'fi',
         name: 'Suomi',
+        countryName: 'Finland',
+        flagCode: 'fi',
         flag: '🇫🇮',
         currency: 'EUR',
         symbol: '€',
-        rate: 0.92, // 1 USD = 0.92 EUR
+        rate: 0.92,
         translations: {
             // NAVIGATION
             'home': 'Koti',
@@ -1362,10 +1374,12 @@ const languages = [
     {
         code: 'de',
         name: 'Deutsch',
+        countryName: 'Germany',
+        flagCode: 'de',
         flag: '🇩🇪',
         currency: 'EUR',
         symbol: '€',
-        rate: 0.92, // 1 USD = 0.92 EUR
+        rate: 0.92,
         translations: {
             // NAVIGATION
             'home': 'Startseite',
@@ -1601,10 +1615,12 @@ const languages = [
     {
         code: 'nl',
         name: 'Nederlands',
+        countryName: 'Netherlands',
+        flagCode: 'nl',
         flag: '🇳🇱',
         currency: 'EUR',
         symbol: '€',
-        rate: 0.92, // 1 USD = 0.92 EUR
+        rate: 0.92,
         translations: {
             // NAVIGATION
             'home': 'Home',
@@ -1840,10 +1856,12 @@ const languages = [
     {
         code: 'fr',
         name: 'Français',
+        countryName: 'France',
+        flagCode: 'fr',
         flag: '🇫🇷',
         currency: 'EUR',
         symbol: '€',
-        rate: 0.92, // 1 USD = 0.92 EUR
+        rate: 0.92,
         translations: {
             // NAVIGATION
             'home': 'Accueil',
@@ -2078,10 +2096,12 @@ const languages = [
     {
         code: 'it',
         name: 'Italiano',
+        countryName: 'Italy',
+        flagCode: 'it',
         flag: '🇮🇹',
         currency: 'EUR',
         symbol: '€',
-        rate: 0.92, // 1 USD = 0.92 EUR
+        rate: 0.92,
         translations: {
             // NAVIGATION
             'home': 'Home',
@@ -2317,10 +2337,12 @@ const languages = [
     {
         code: 'gr',
         name: 'Ελληνικά',
+        countryName: 'Greece',
+        flagCode: 'gr',
         flag: '🇬🇷',
         currency: 'EUR',
         symbol: '€',
-        rate: 0.92, // 1 USD = 0.92 EUR
+        rate: 0.92,
         translations: {
             // NAVIGATION
             'home': 'Αρχική',
